@@ -52,7 +52,15 @@ class DataQualityAnalyzer:
             Dict: Dictionary containing total_rows, total_columns, duplicates, 
                 missing_values, missing_percentage, data_types, and memory_usage
         """
-        pass
+        return {
+            'total_rows': len(self.data),
+            'total_columns': len(self.data.columns),
+            'duplicates': int(self.data.duplicated().sum()),
+            'missing_values': self.data.isnull().sum().to_dict(),
+            'missing_percentage': (self.data.isnull().mean() * 100).to_dict(),
+            'data_types': self.data.dtypes.astype(str).to_dict(),
+            'memory_usage': self.data.memory_usage(deep=True).sum() / (1024 ** 2)
+        }
     
     def identify_missing_pattern(self, column: str) -> str:
         """
@@ -64,7 +72,34 @@ class DataQualityAnalyzer:
         Returns:
             str: String indicating likely missing pattern (MCAR, MAR, or MNAR)
         """
-        pass
+        if column not in self.data.columns:
+            return "Column not found"
+
+        indicator = self.data[column].isna().astype(int)
+
+        if indicator.sum() == 0:
+            return "No missing values"
+
+        numeric = self.data.select_dtypes(include=[np.number])
+
+        for other in numeric.columns:
+            if other == column:
+                continue
+
+            observed = self.data[other].notna()
+
+            if observed.sum() < 3 or indicator[observed].nunique() < 2:
+                continue
+
+            correlation = indicator[observed].corr(
+                self.data.loc[observed, other]
+            )
+
+            if pd.notna(correlation) and abs(correlation) >= 0.2:
+                return "Likely MAR (Missing at Random)"
+
+        # MNAR cannot be established from observed data alone.
+        return "Likely MCAR (Missing Completely at Random)"
     
     def create_missing_indicators(self) -> pd.DataFrame:
         """
@@ -73,7 +108,18 @@ class DataQualityAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with binary indicators for missing values
         """
-        pass
+        missing = self.data.isna()
+
+        self.missing_indicators = missing.loc[
+            :, missing.any()
+        ].astype(int)
+
+        self.missing_indicators.columns = [
+            f'{column}_missing'
+            for column in self.missing_indicators.columns
+        ]
+
+        return self.missing_indicators.copy()
     
     def simple_imputation(self, strategy: str = 'mean') -> pd.DataFrame:
         """
@@ -85,7 +131,46 @@ class DataQualityAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with imputed values
         """
-        pass
+        if strategy == 'mode':
+            strategy = 'most_frequent'
+
+        if strategy not in ('mean', 'median', 'most_frequent'):
+            raise ValueError('Unsupported imputation strategy')
+
+        result = self.original_data.copy()
+
+        numeric_cols = result.select_dtypes(
+            include=[np.number]
+        ).columns.tolist()
+
+        categorical_cols = result.columns.difference(
+            numeric_cols
+        ).tolist()
+
+        if numeric_cols:
+            numeric_strategy = strategy
+
+            valid_cols = [
+                col for col in numeric_cols
+                if result[col].notna().any()
+            ]
+
+            for col in valid_cols:
+                imputer = SimpleImputer(strategy=numeric_strategy)
+                result[col] = imputer.fit_transform(
+                    result[[col]]
+                ).ravel()
+
+        for col in categorical_cols:
+            if result[col].notna().any():
+                imputer = SimpleImputer(strategy='most_frequent')
+                result[col] = imputer.fit_transform(
+                    result[[col]]
+                ).ravel()
+
+        self.imputed_datasets[f'simple_{strategy}'] = result.copy()
+
+        return result
     
     def knn_imputation(self, n_neighbors: int = 5) -> pd.DataFrame:
         """
@@ -97,7 +182,37 @@ class DataQualityAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with KNN imputed values
         """
-        pass
+        if n_neighbors < 1:
+            raise ValueError('n_neighbors must be positive')
+
+        result = self.original_data.copy()
+
+        numeric_cols = result.select_dtypes(
+            include=[np.number]
+        ).columns.tolist()
+
+        valid_cols = [
+            col for col in numeric_cols
+            if result[col].notna().any()
+        ]
+
+        if valid_cols:
+            imputer = KNNImputer(n_neighbors=n_neighbors)
+
+            result[valid_cols] = imputer.fit_transform(
+                result[valid_cols]
+            )
+
+        for col in result.columns.difference(numeric_cols):
+            if result[col].notna().any():
+                imputer = SimpleImputer(strategy='most_frequent')
+                result[col] = imputer.fit_transform(
+                    result[[col]]
+                ).ravel()
+
+        self.imputed_datasets['knn'] = result.copy()
+
+        return result
     
     def iterative_imputation(self, max_iter: int = 10) -> pd.DataFrame:
         """
@@ -109,7 +224,40 @@ class DataQualityAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with iteratively imputed values
         """
-        pass
+        if max_iter < 1:
+            raise ValueError('max_iter must be positive')
+
+        result = self.original_data.copy()
+
+        numeric_cols = result.select_dtypes(
+            include=[np.number]
+        ).columns.tolist()
+
+        valid_cols = [
+            col for col in numeric_cols
+            if result[col].notna().any()
+        ]
+
+        if valid_cols:
+            imputer = IterativeImputer(
+                max_iter=max_iter,
+                random_state=42
+            )
+
+            result[valid_cols] = imputer.fit_transform(
+                result[valid_cols]
+            )
+
+        for col in result.columns.difference(numeric_cols):
+            if result[col].notna().any():
+                imputer = SimpleImputer(strategy='most_frequent')
+                result[col] = imputer.fit_transform(
+                    result[[col]]
+                ).ravel()
+
+        self.imputed_datasets['iterative'] = result.copy()
+
+        return result
     
     def compare_imputation_methods(self) -> pd.DataFrame:
         """
@@ -124,7 +272,12 @@ class DataQualityAnalyzer:
         comparison['original'] = self.original_data.describe().loc[['mean', 'std', 'min', 'max']]
         
         # Statistics for each imputed dataset
-        pass
+        for name, dataset in self.imputed_datasets.items():
+            comparison[name] = dataset.describe().loc[
+                ['mean', 'std', 'min', 'max']
+            ]
+
+        return pd.concat(comparison, axis=1)
     
     def visualize_missing_data(self, figsize: Tuple[int, int] = (15, 10)):
         """
@@ -375,19 +528,19 @@ def main():
     print()
     
     # Apply different imputation methods
-    print("4. APPLYING IMPUTATION METHODS")
-    print("-" * 80)
-    
     print("  a) Simple Imputation (Mean)...")
     analyzer.simple_imputation(strategy='mean')
-    
+
     print("  b) Simple Imputation (Median)...")
     analyzer.simple_imputation(strategy='median')
-    
-    print("  c) KNN Imputation...")
+
+    print("  c) Simple Imputation (Mode)...")
+    analyzer.simple_imputation(strategy='most_frequent')
+
+    print("  d) KNN Imputation...")
     analyzer.knn_imputation(n_neighbors=5)
-    
-    print("  d) Iterative Imputation (MICE)...")
+
+    print("  e) Iterative Imputation (MICE)...")
     analyzer.iterative_imputation(max_iter=10)
     print()
     
