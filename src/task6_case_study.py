@@ -10,6 +10,7 @@ Date: December 2025
 """
 
 import matplotlib
+from plotly import data
 matplotlib.use('Agg')  # Use non-interactive backend
 
 import numpy as np
@@ -75,13 +76,45 @@ class DataPreprocessor:
         }
         
         # Missing values analysis
-        pass
+        missing_counts = self.data.isnull().sum()
+        report['missing_values'] = {
+            'total': int(missing_counts.sum()),
+            'by_column': missing_counts[missing_counts > 0].to_dict(),
+            'percentage_by_column': (
+                missing_counts[missing_counts > 0] / len(self.data) * 100
+            ).to_dict()
+        }
         
         # Data types
-        pass
+        report['data_types'] = self.data.dtypes.astype(str).to_dict()
+
+        report['numeric_features'] = self.data.select_dtypes(
+            include=[np.number]
+        ).columns.tolist()
+
+        report['categorical_features'] = self.data.select_dtypes(
+            include=['object', 'category', 'string']
+        ).columns.tolist()
+
+        report['datetime_features'] = self.data.select_dtypes(
+            include=['datetime', 'datetimetz']
+        ).columns.tolist()
         
         # Target distribution
-        pass
+        if self.target_col in self.data.columns:
+            class_counts = self.data[self.target_col].value_counts()
+
+            report['target_distribution'] = class_counts.to_dict()
+
+            if len(class_counts) > 1:
+                report['class_balance'] = (
+                    class_counts.min() / class_counts.max()
+                )
+            else:
+                report['class_balance'] = 1.0
+
+        self.quality_report = report
+        return report
     
     def print_quality_report(self):
         """
@@ -140,18 +173,33 @@ class DataPreprocessor:
         
         if strategy == 'auto' or strategy == 'simple':
             # Numeric: median imputation
-            pass
+            if numeric_cols:
+                imputer = SimpleImputer(strategy='median')
+                data[numeric_cols] = imputer.fit_transform(data[numeric_cols])
             
             # Categorical: mode imputation
             if categorical_cols:
-                pass
+                imputer = SimpleImputer(strategy='most_frequent')
+                data[categorical_cols] = imputer.fit_transform(data[categorical_cols])
         
         elif strategy == 'knn':
-            pass
-        
+            if numeric_cols:
+                imputer = KNNImputer(n_neighbors=5)
+                data[numeric_cols] = imputer.fit_transform(data[numeric_cols])
+
+            if categorical_cols:
+                imputer = SimpleImputer(strategy='most_frequent')
+                data[categorical_cols] = imputer.fit_transform(data[categorical_cols])
+
         elif strategy == 'iterative':
-            pass
-        
+            if numeric_cols:
+                imputer = IterativeImputer(max_iter=10, random_state=42)
+                data[numeric_cols] = imputer.fit_transform(data[numeric_cols])
+
+            if categorical_cols:
+                imputer = SimpleImputer(strategy='most_frequent')
+                data[categorical_cols] = imputer.fit_transform(data[categorical_cols])
+                    
         self.data = data
         self.preprocessing_steps.append(f"Missing values handled: {strategy}")
         return data
@@ -170,8 +218,45 @@ class DataPreprocessor:
         """
         data = self.data.copy()
                                        
-        pass
-        
+        numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+        numeric_cols = [col for col in numeric_cols if col != self.target_col]
+
+        outliers_count = 0
+
+        for col in numeric_cols:
+            if method == 'iqr':
+                Q1 = data[col].quantile(0.25)
+                Q3 = data[col].quantile(0.75)
+                IQR = Q3 - Q1
+
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+
+            elif method == 'zscore':
+                mean = data[col].mean()
+                std = data[col].std()
+
+                lower_bound = mean - 3 * std
+                upper_bound = mean + 3 * std
+
+            else:
+                raise ValueError(f"Unsupported outlier method: {method}")
+
+            outlier_mask = (data[col] < lower_bound) | (data[col] > upper_bound)
+            outliers_count += int(outlier_mask.sum())
+
+            if action == 'cap':
+                data[col] = data[col].clip(lower=lower_bound, upper=upper_bound)
+
+            elif action == 'remove':
+                data = data.loc[~outlier_mask].copy()
+
+            elif action == 'nan':
+                data.loc[outlier_mask, col] = np.nan
+
+            else:
+                raise ValueError(f"Unsupported outlier action: {action}")
+                
         self.data = data
         self.preprocessing_steps.append(
             f"Outliers handled: {method} method, {action} action, {outliers_count} outliers"
@@ -190,7 +275,39 @@ class DataPreprocessor:
         """
         data = self.data.copy()
         
-        pass
+        categorical_cols = data.select_dtypes(
+            include=['object', 'category', 'string']
+        ).columns.tolist()
+
+        for col in categorical_cols:
+            if col == self.target_col:
+                continue
+
+            if method in ['auto', 'label']:
+                encoder = LabelEncoder()
+                data[col] = encoder.fit_transform(data[col].astype(str))
+
+            elif method == 'onehot':
+                data = pd.get_dummies(
+                    data,
+                    columns=[col],
+                    dtype=int
+                )
+
+            else:
+                raise ValueError(f"Unsupported encoding method: {method}")
+
+        datetime_cols = data.select_dtypes(
+            include=['datetime', 'datetimetz']
+        ).columns.tolist()
+
+        for col in datetime_cols:
+            data[f'{col}_year'] = data[col].dt.year
+            data[f'{col}_month'] = data[col].dt.month
+            data[f'{col}_day'] = data[col].dt.day
+            data[f'{col}_dayofweek'] = data[col].dt.dayofweek
+
+            data = data.drop(columns=[col])
         
         self.data = data
         self.preprocessing_steps.append(f"Categorical encoding: {method}, datetime features extracted")
@@ -215,19 +332,32 @@ class DataPreprocessor:
         # Statistical features
         if len(numeric_cols) >= 2:
             # Mean of all numeric features
-            pass
+            data['feature_mean'] = data[numeric_cols].mean(axis=1)
+            new_features.append('feature_mean')
             
             # Standard deviation
-            pass
+            data['feature_std'] = data[numeric_cols].std(axis=1)
+            new_features.append('feature_std')
             
             # Min and max
-            pass
+            data['feature_min'] = data[numeric_cols].min(axis=1)
+            data['feature_max'] = data[numeric_cols].max(axis=1)
+
+            new_features.extend(['feature_min', 'feature_max'])
         
         # Interaction features (limited to avoid explosion)
-        pass
-        
+        if len(numeric_cols) >= 2:
+            for i in range(min(3, len(numeric_cols) - 1)):
+                col1 = numeric_cols[i]
+                col2 = numeric_cols[i + 1]
+
+                feature_name = f'{col1}_x_{col2}'
+                data[feature_name] = data[col1] * data[col2]
+                new_features.append(feature_name)
+                
         self.data = data
-        self.preprocessing_steps.append(f"Feature engineering: {len(new_features)} new features created")
+        self.preprocessing_steps.append(f"Feature engineering: {len(new_features)} new features created"
+        )
         return data
     
     def scale_features(self, method: str = 'standard') -> pd.DataFrame:
@@ -242,7 +372,20 @@ class DataPreprocessor:
         """
         data = self.data.copy()
         
-        pass
+        numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+        numeric_cols = [col for col in numeric_cols if col != self.target_col]
+
+        if method == 'standard':
+            scaler = StandardScaler()
+
+        elif method == 'robust':
+            scaler = RobustScaler()
+
+        else:
+            raise ValueError(f"Unsupported scaling method: {method}")
+
+        if numeric_cols:
+            data[numeric_cols] = scaler.fit_transform(data[numeric_cols])
         
         self.data = data
         self.preprocessing_steps.append(f"Feature scaling: {method}")

@@ -6,10 +6,10 @@
     ],
     "total_samples": 2040,
     "total_features": 30,
-    "memory_usage_mb": 0.728642463684082,
+    "memory_usage_mb": 0.7753305435180664,
     "duplicates": "40",
     "missing_values": {
-      "total": "7657",
+      "total": 7657,
       "by_column": {
         "feature_0": 305,
         "feature_1": 310,
@@ -143,7 +143,7 @@
     "Missing values handled: auto",
     "Outliers handled: iqr method, cap action, 1692 outliers",
     "Categorical encoding: auto, datetime features extracted",
-    "Feature engineering: 10 new features created",
+    "Feature engineering: 7 new features created",
     "Feature scaling: robust",
     "Feature selection: kbest, 30 features selected",
     "Class balancing: undersample"
@@ -152,5 +152,5 @@
     1214,
     31
   ],
-  "timestamp": "2025-12-15 17:17:25"
+  "timestamp": "2026-10-18 20:53:43"
 }
