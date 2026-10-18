@@ -230,22 +230,62 @@ class PreprocessingPipeline:
         steps = []
         
         # Step 1: Imputation
-        pass
+        if imputer_strategy == 'knn':
+            imputer = KNNImputer(n_neighbors=5)
+        elif imputer_strategy in ['mean', 'median']:
+            imputer = SimpleImputer(strategy=imputer_strategy)
+        else:
+            raise ValueError(f"Unsupported imputer strategy: {imputer_strategy}")
+
+        steps.append(('imputer', imputer))
         
         # Step 2: Outlier handling
-        pass
+        outlier_handler = OutlierHandler(
+            method=outlier_method,
+            strategy='cap',
+            threshold=1.5 if outlier_method == 'iqr' else 3.0
+        )
+
+        steps.append(('outlier_handler', outlier_handler))
         
         # Step 3: Feature engineering
-        pass
+        if feature_engineering:
+            feature_engineer = FeatureEngineer(
+                interactions=True,
+                polynomials=False,
+                transformations=True
+            )
+
+            steps.append(('feature_engineer', feature_engineer))
         
         # Step 4: Scaling
-        pass
+        if scaler_type == 'standard':
+            scaler = StandardScaler()
+        elif scaler_type == 'robust':
+            scaler = RobustScaler()
+        elif scaler_type == 'minmax':
+            scaler = MinMaxScaler()
+        else:
+            raise ValueError(f"Unsupported scaler type: {scaler_type}")
+
+        steps.append(('scaler', scaler))
         
         # Step 5: Feature selection
-        pass
+        if feature_selection:
+            selector = SelectKBest(
+                score_func=f_classif,
+                k=n_features
+            )
+
+            steps.append(('feature_selection', selector))
         
         # Step 6: Classifier
-        pass
+        classifier = RandomForestClassifier(
+            n_estimators=100,
+            random_state=self.random_state
+        )
+
+        steps.append(('classifier', classifier))
         
         self.pipeline = Pipeline(steps)
         return self.pipeline
