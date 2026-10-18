@@ -70,7 +70,49 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with added mathematical features
         """
-        pass
+        result = df.copy()
+
+        for col in columns:
+            if col not in result.columns:
+                continue
+
+            values = result[col]
+
+            for operation in operations:
+                feature_name = f"{col}_{operation}"
+
+                if operation == 'log':
+                    offset = max(0, 1 - values.min())
+                    result[feature_name] = np.log(values + offset)
+
+                elif operation == 'sqrt':
+                    offset = max(0, -values.min())
+                    result[feature_name] = np.sqrt(values + offset)
+
+                elif operation == 'square':
+                    result[feature_name] = values ** 2
+
+                elif operation == 'cube':
+                    result[feature_name] = values ** 3
+
+                elif operation == 'reciprocal':
+                    safe_values = values.replace(0, np.nan)
+                    result[feature_name] = 1 / safe_values
+                    result[feature_name] = (
+                        result[feature_name].replace(
+                            [np.inf, -np.inf], np.nan
+                        ).fillna(0)
+                    )
+
+                else:
+                    continue
+
+                self.engineered_features.append(feature_name)
+                self.feature_catalog[feature_name] = (
+                    f"{operation} transformation of {col}"
+                )
+
+        return result
     
     def create_interaction_features(
         self,
@@ -95,7 +137,49 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with interaction features
         """
-        pass
+        result = df.copy()
+
+        for col1, col2 in column_pairs:
+            if col1 not in result.columns or col2 not in result.columns:
+                continue
+
+            for operation in operations:
+
+                if operation == 'multiply':
+                    feature_name = f"{col1}_x_{col2}"
+                    result[feature_name] = result[col1] * result[col2]
+
+                elif operation == 'add':
+                    feature_name = f"{col1}_plus_{col2}"
+                    result[feature_name] = result[col1] + result[col2]
+
+                elif operation == 'subtract':
+                    feature_name = f"{col1}_minus_{col2}"
+                    result[feature_name] = result[col1] - result[col2]
+
+                elif operation == 'divide':
+                    feature_name = f"{col1}_div_{col2}"
+                    denominator = result[col2].replace(0, np.nan)
+                    result[feature_name] = (
+                        result[col1] / denominator
+                    ).replace([np.inf, -np.inf], np.nan).fillna(0)
+
+                elif operation == 'ratio':
+                    feature_name = f"{col1}_ratio_{col2}"
+                    denominator = result[col2].replace(0, np.nan)
+                    result[feature_name] = (
+                        result[col1] / denominator
+                    ).replace([np.inf, -np.inf], np.nan).fillna(0)
+
+                else:
+                    continue
+
+                self.engineered_features.append(feature_name)
+                self.feature_catalog[feature_name] = (
+                    f"{operation} interaction between {col1} and {col2}"
+                )
+
+        return result
     
     def create_aggregation_features(
         self,
@@ -123,7 +207,33 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with aggregation features
         """
-        pass
+        result = df.copy()
+
+        if group_by not in result.columns:
+            return result
+
+        for col in agg_columns:
+            if col not in result.columns:
+                continue
+
+            for func in agg_functions:
+                if func not in ['mean', 'std', 'min', 'max', 'count']:
+                    continue
+
+                feature_name = f"{col}_{func}_by_{group_by}"
+
+                result[feature_name] = (
+                    result.groupby(group_by)[col]
+                    .transform(func)
+                )
+
+                self.engineered_features.append(feature_name)
+
+                self.feature_catalog[feature_name] = (
+                    f"{func} of {col} grouped by {group_by}"
+                )
+
+        return result
     
     def encode_onehot(
         self,
@@ -151,7 +261,40 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with one-hot encoded features
         """
-        pass
+        result = df.copy()
+
+        for col in columns:
+            if col not in result.columns:
+                continue
+
+            values = result[col].fillna('Missing').astype(str)
+
+            if values.nunique() > max_categories:
+                top_categories = values.value_counts().head(max_categories).index
+                values = values.where(values.isin(top_categories), 'Other')
+
+            encoded = pd.get_dummies(
+                values,
+                prefix=col,
+                drop_first=drop_first,
+                dtype=int
+            )
+
+            result = result.drop(columns=[col])
+            result = pd.concat([result, encoded], axis=1)
+
+            self.encoders[col] = {
+                'type': 'onehot',
+                'categories': values.unique().tolist()
+            }
+
+            for feature_name in encoded.columns:
+                self.engineered_features.append(feature_name)
+                self.feature_catalog[feature_name] = (
+                    f"One-hot encoding of {col}"
+                )
+
+        return result
     
     def encode_label(
         self,
@@ -173,7 +316,29 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with label encoded features
         """
-        pass
+        result = df.copy()
+
+        for col in columns:
+            if col not in result.columns:
+                continue
+
+            encoder = LabelEncoder()
+
+            values = result[col].fillna('Missing').astype(str)
+
+            feature_name = f"{col}_label"
+
+            result[feature_name] = encoder.fit_transform(values)
+
+            self.encoders[f"{col}_label"] = encoder
+
+            self.engineered_features.append(feature_name)
+
+            self.feature_catalog[feature_name] = (
+                f"Label encoding of {col}"
+            )
+
+        return result
     
     def encode_target(
         self,
@@ -201,7 +366,48 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with target encoded features
         """
-        pass
+        result = df.copy()
+
+        if target not in result.columns:
+            return result
+
+        global_mean = result[target].mean()
+
+        for col in columns:
+            if col not in result.columns:
+                continue
+
+            values = result[col].fillna('Missing')
+
+            statistics = result.groupby(values)[target].agg(
+                ['mean', 'count']
+            )
+
+            smoothed_values = (
+                statistics['mean'] * statistics['count']
+                + global_mean * smoothing
+            ) / (statistics['count'] + smoothing)
+
+            feature_name = f"{col}_target"
+
+            result[feature_name] = (
+                values.map(smoothed_values).astype(float)
+            )
+
+            self.encoders[col] = {
+                'type': 'target',
+                'mapping': smoothed_values.to_dict(),
+                'global_mean': global_mean,
+                'smoothing': smoothing
+            }
+
+            self.engineered_features.append(feature_name)
+
+            self.feature_catalog[feature_name] = (
+                f"Target encoding of {col} using {target}"
+            )
+
+        return result
     
     def encode_frequency(
         self,
@@ -223,7 +429,34 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with frequency encoded features
         """
-        pass
+        result = df.copy()
+
+        for col in columns:
+            if col not in result.columns:
+                continue
+
+            values = result[col].fillna('Missing')
+
+            frequencies = values.value_counts(normalize=True)
+
+            feature_name = f"{col}_freq"
+
+            result[feature_name] = (
+                values.map(frequencies).astype(float)
+            )
+
+            self.encoders[col] = {
+                'type': 'frequency',
+                'mapping': frequencies.to_dict()
+            }
+
+            self.engineered_features.append(feature_name)
+
+            self.feature_catalog[feature_name] = (
+                f"Frequency encoding of {col}"
+            )
+
+        return result
     
     def create_polynomial_features(
         self,
@@ -251,7 +484,43 @@ class FeatureEngineeringPipeline:
         pd.DataFrame
             Dataframe with polynomial features
         """
-        pass
+        result = df.copy()
+
+        valid_columns = [
+            col for col in columns
+            if col in result.columns
+        ]
+
+        if not valid_columns:
+            return result
+
+        poly = PolynomialFeatures(
+            degree=degree,
+            include_bias=include_bias
+        )
+
+        transformed = poly.fit_transform(result[valid_columns])
+
+        feature_names = poly.get_feature_names_out(valid_columns)
+
+        for i, name in enumerate(feature_names):
+
+            if name in valid_columns or name == '1':
+                continue
+
+            feature_name = f"poly_{name}"
+
+            result[feature_name] = transformed[:, i]
+
+            self.engineered_features.append(feature_name)
+
+            self.feature_catalog[feature_name] = (
+                f"Polynomial feature: {name}, degree {degree}"
+            )
+
+        self.encoders['polynomial'] = poly
+
+        return result
     
     def select_features_univariate(
         self,
