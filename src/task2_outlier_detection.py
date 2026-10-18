@@ -56,7 +56,19 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Boolean mask indicating outliers
         """
-        pass
+        numeric_data = self.data.select_dtypes(include=[np.number])
+
+        z_scores = np.abs(stats.zscore(numeric_data, nan_policy='omit'))
+
+        outliers = pd.DataFrame(
+            z_scores > threshold,
+            index=numeric_data.index,
+            columns=numeric_data.columns
+        )
+
+        self.outlier_masks['zscore'] = outliers
+
+        return outliers
     
     def detect_outliers_iqr(self, multiplier: float = 1.5) -> pd.DataFrame:
         """
@@ -68,7 +80,21 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Boolean mask indicating outliers
         """
-        pass
+        numeric_data = self.data.select_dtypes(include=[np.number])
+
+        q1 = numeric_data.quantile(0.25)
+        q3 = numeric_data.quantile(0.75)
+
+        iqr = q3 - q1
+
+        lower_bound = q1 - multiplier * iqr
+        upper_bound = q3 + multiplier * iqr
+
+        outliers = (numeric_data < lower_bound) | (numeric_data > upper_bound)
+
+        self.outlier_masks['iqr'] = outliers
+
+        return outliers
     
     def detect_outliers_isolation_forest(self, contamination: float = 0.1, 
                                         random_state: int = 42) -> pd.DataFrame:
@@ -82,7 +108,29 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Boolean mask indicating outliers
         """
-        pass
+        numeric_data = self.data.select_dtypes(include=[np.number])
+
+        if numeric_data.empty or len(numeric_data.columns) == 0:
+            return pd.DataFrame(False, index=self.data.index, columns=numeric_data.columns)
+
+        filled_data = numeric_data.fillna(numeric_data.median()).fillna(0)
+
+        model = IsolationForest(
+            contamination=contamination,
+            random_state=random_state
+        )
+
+        predictions = model.fit_predict(filled_data)
+
+        outliers = pd.DataFrame(
+            np.repeat((predictions == -1)[:, np.newaxis], len(numeric_data.columns), axis=1),
+            index=numeric_data.index,
+            columns=numeric_data.columns
+        )
+
+        self.outlier_masks['isolation_forest'] = outliers
+
+        return outliers
     
     def detect_outliers_lof(self, n_neighbors: int = 20, 
                            contamination: float = 0.1) -> pd.DataFrame:
@@ -96,7 +144,48 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Boolean mask indicating outliers
         """
-        pass
+        numeric_data = self.data.select_dtypes(include=[np.number])
+
+        if numeric_data.empty or len(numeric_data.columns) == 0:
+            outliers = pd.DataFrame(
+                False,
+                index=self.data.index,
+                columns=numeric_data.columns
+            )
+            self.outlier_masks['lof'] = outliers
+            return outliers
+
+        filled_data = numeric_data.fillna(numeric_data.median()).fillna(0)
+
+        if len(filled_data) < 3:
+            outliers = pd.DataFrame(
+                False,
+                index=numeric_data.index,
+                columns=numeric_data.columns
+            )
+            self.outlier_masks['lof'] = outliers
+            return outliers
+
+        model = LocalOutlierFactor(
+            n_neighbors=min(n_neighbors, len(filled_data) - 1),
+            contamination=contamination
+        )
+
+        predictions = model.fit_predict(filled_data)
+
+        outliers = pd.DataFrame(
+            np.repeat(
+                (predictions == -1)[:, np.newaxis],
+                len(numeric_data.columns),
+                axis=1
+            ),
+            index=numeric_data.index,
+            columns=numeric_data.columns
+        )
+
+        self.outlier_masks['lof'] = outliers
+
+        return outliers
     
     def get_outlier_summary(self) -> pd.DataFrame:
         """
@@ -105,7 +194,12 @@ class OutlierAnalyzer:
         Returns:
             DataFrame with outlier counts for each method
         """
-        pass
+        summary = {}
+
+        for method, mask in self.outlier_masks.items():
+            summary[method] = mask.sum()
+
+        return pd.DataFrame(summary)
     
     def remove_outliers(self, method: str = 'iqr') -> pd.DataFrame:
         """
@@ -117,7 +211,27 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Dataset with outliers removed
         """
-        pass
+        if method not in self.outlier_masks:
+            if method == 'iqr':
+                self.detect_outliers_iqr()
+            elif method == 'zscore':
+                self.detect_outliers_zscore()
+            elif method == 'isolation_forest':
+                self.detect_outliers_isolation_forest()
+            elif method == 'lof':
+                self.detect_outliers_lof()
+            else:
+                raise ValueError(f"Unknown outlier detection method: {method}")
+
+        outlier_mask = self.outlier_masks[method]
+
+        rows_with_outliers = outlier_mask.any(axis=1)
+
+        cleaned_data = self.data.loc[~rows_with_outliers].copy()
+
+        self.treated_datasets[f'removed_{method}'] = cleaned_data
+
+        return cleaned_data
     
     def cap_outliers(self, method: str = 'iqr', multiplier: float = 1.5) -> pd.DataFrame:
         """
@@ -130,7 +244,36 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Dataset with capped outliers
         """
-        pass
+        capped_data = self.data.copy()
+        numeric_cols = capped_data.select_dtypes(include=[np.number]).columns
+
+        if method == 'iqr':
+            q1 = capped_data[numeric_cols].quantile(0.25)
+            q3 = capped_data[numeric_cols].quantile(0.75)
+            iqr = q3 - q1
+
+            lower_bound = q1 - multiplier * iqr
+            upper_bound = q3 + multiplier * iqr
+
+        elif method == 'zscore':
+            mean = capped_data[numeric_cols].mean()
+            std = capped_data[numeric_cols].std(ddof=0)
+
+            lower_bound = mean - 3 * std
+            upper_bound = mean + 3 * std
+
+        else:
+            raise ValueError(f"Unsupported capping method: {method}")
+
+        capped_data[numeric_cols] = capped_data[numeric_cols].clip(
+            lower=lower_bound,
+            upper=upper_bound,
+            axis=1
+        )
+
+        self.treated_datasets['capped'] = capped_data
+
+        return capped_data
     
     def transform_outliers_log(self) -> pd.DataFrame:
         """
@@ -139,7 +282,27 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Dataset with log-transformed values
         """
-        pass
+        transformed_data = self.data.copy()
+
+        numeric_cols = transformed_data.select_dtypes(
+            include=[np.number]
+        ).columns
+
+        for column in numeric_cols:
+            values = transformed_data[column]
+
+            if values.dropna().empty:
+                continue
+
+            min_value = values.min()
+
+            shift = -min_value if min_value < 0 else 0
+
+            transformed_data[column] = np.log1p(values + shift)
+
+        self.treated_datasets['log_transform'] = transformed_data
+
+        return transformed_data
     
     def transform_outliers_boxcox(self) -> pd.DataFrame:
         """
@@ -148,7 +311,36 @@ class OutlierAnalyzer:
         Returns:
             pd.DataFrame: Dataset with power-transformed values
         """
-        pass
+        transformed_data = self.data.copy()
+
+        numeric_cols = transformed_data.select_dtypes(
+            include=[np.number]
+        ).columns
+
+        for column in numeric_cols:
+            values = transformed_data[column]
+
+            valid_values = values.dropna()
+
+            if len(valid_values) < 2 or valid_values.nunique() < 2:
+                continue
+
+            transformer = PowerTransformer(
+                method='yeo-johnson',
+                standardize=True
+            )
+
+            transformed_values = transformer.fit_transform(
+                valid_values.to_numpy().reshape(-1, 1)
+            )
+
+            transformed_data.loc[valid_values.index, column] = (
+                transformed_values.ravel()
+            )
+
+        self.treated_datasets['boxcox_transform'] = transformed_data
+
+        return transformed_data
     
     def evaluate_model_performance(self, target_col: str, 
                                    dataset_name: str = 'original') -> Dict[str, float]:
@@ -162,7 +354,48 @@ class OutlierAnalyzer:
         Returns:
             Dictionary with performance metrics
         """
-        pass
+        if dataset_name == 'original':
+            dataset = self.original_data.copy()
+        elif dataset_name in self.treated_datasets:
+            dataset = self.treated_datasets[dataset_name].copy()
+        else:
+            raise ValueError(f"Dataset '{dataset_name}' not found")
+
+        if target_col not in dataset.columns:
+            raise ValueError(f"Target column '{target_col}' not found")
+
+        numeric_data = dataset.select_dtypes(include=[np.number])
+
+        if target_col not in numeric_data.columns:
+            raise ValueError("Target column must be numeric")
+
+        numeric_data = numeric_data.dropna(subset=[target_col])
+
+        X = numeric_data.drop(columns=[target_col])
+        y = numeric_data[target_col]
+
+        if X.empty or len(X) < 5:
+            raise ValueError("Not enough data for model evaluation")
+
+        X = X.fillna(X.median()).fillna(0)
+
+        model = LinearRegression()
+
+        scores = cross_val_score(
+            model,
+            X,
+            y,
+            cv=5,
+            scoring='r2'
+        )
+
+        performance = {
+            'r2_score': float(np.mean(scores)),
+            'r2_std': float(np.std(scores)),
+            'mean_cv_score': float(np.mean(scores))
+        }
+
+        return performance
     
     def visualize_outliers_boxplot(self, figsize: Tuple[int, int] = (15, 10)):
         """
@@ -174,7 +407,41 @@ class OutlierAnalyzer:
         Returns:
             matplotlib.figure.Figure: The generated figure object
         """
-        pass
+        numeric_cols = self.data.select_dtypes(
+            include=[np.number]
+        ).columns[:6]
+
+        fig, axes = plt.subplots(2, 3, figsize=figsize)
+        axes = axes.flatten()
+
+        for idx, column in enumerate(numeric_cols):
+            ax = axes[idx]
+
+            sns.boxplot(
+                y=self.data[column],
+                ax=ax,
+                color='skyblue'
+            )
+
+            ax.set_title(
+                f'Boxplot: {column}',
+                fontweight='bold'
+            )
+
+            ax.set_ylabel(column)
+            ax.grid(axis='y', alpha=0.3)
+
+        for idx in range(len(numeric_cols), len(axes)):
+            axes[idx].axis('off')
+
+        plt.suptitle(
+            'Outlier Detection Using Boxplots',
+            fontsize=14,
+            fontweight='bold',
+            y=1.02
+        )
+
+        plt.tight_layout()
         
         return fig
     
@@ -187,7 +454,38 @@ class OutlierAnalyzer:
         """
         numeric_cols = self.data.select_dtypes(include=[np.number]).columns[:6]
         
-        pass
+        fig, axes = plt.subplots(2, 3, figsize=figsize)
+        axes = axes.flatten()
+
+        for idx, column in enumerate(numeric_cols):
+            ax = axes[idx]
+
+            sns.violinplot(
+                y=self.data[column].dropna(),
+                ax=ax,
+                color='lightblue',
+                inner='box'
+            )
+
+            ax.set_title(
+                f'Violin Plot: {column}',
+                fontweight='bold'
+            )
+
+            ax.set_ylabel(column)
+            ax.grid(axis='y', alpha=0.3)
+
+        for idx in range(len(numeric_cols), len(axes)):
+            axes[idx].axis('off')
+
+        plt.suptitle(
+            'Data Distribution Using Violin Plots',
+            fontsize=14,
+            fontweight='bold',
+            y=1.02
+        )
+
+        plt.tight_layout()
         
         return fig
     
@@ -201,7 +499,68 @@ class OutlierAnalyzer:
             y_col: Column for y-axis
             figsize: Figure size for plots
         """
-        pass
+
+        if x_col not in self.data.columns:
+            print(f"Column '{x_col}' not found")
+            return None
+
+        if y_col not in self.data.columns:
+            print(f"Column '{y_col}' not found")
+            return None
+
+        methods = ['zscore', 'iqr', 'isolation_forest', 'lof']
+
+        fig, axes = plt.subplots(1, 4, figsize=figsize)
+
+        for idx, method in enumerate(methods):
+            ax = axes[idx]
+
+            if method not in self.outlier_masks:
+                if method == 'zscore':
+                    self.detect_outliers_zscore()
+                elif method == 'iqr':
+                    self.detect_outliers_iqr()
+                elif method == 'isolation_forest':
+                    self.detect_outliers_isolation_forest()
+                elif method == 'lof':
+                    self.detect_outliers_lof()
+
+            mask = self.outlier_masks[method]
+
+            outlier_rows = mask.any(axis=1)
+
+            normal_data = self.data.loc[~outlier_rows]
+            outlier_data = self.data.loc[outlier_rows]
+
+            ax.scatter(
+                normal_data[x_col],
+                normal_data[y_col],
+                color='blue',
+                alpha=0.5,
+                label='Normal'
+            )
+
+            ax.scatter(
+                outlier_data[x_col],
+                outlier_data[y_col],
+                color='red',
+                alpha=0.8,
+                label='Outliers'
+            )
+
+            ax.set_title(method.replace('_', ' ').title())
+            ax.set_xlabel(x_col)
+            ax.set_ylabel(y_col)
+            ax.legend()
+            ax.grid(alpha=0.3)
+
+        plt.suptitle(
+            'Outlier Detection Comparison',
+            fontsize=14,
+            fontweight='bold'
+        )
+
+        plt.tight_layout()
                                        
         return fig
     
@@ -218,7 +577,48 @@ class OutlierAnalyzer:
         """
         from mpl_toolkits.mplot3d import Axes3D
         
-        pass
+        if method not in self.outlier_masks:
+            print(f"Outlier detection results for '{method}' not found")
+            return None
+
+        mask = self.outlier_masks[method]
+        outlier_rows = mask.any(axis=1)
+
+        normal_data = self.data.loc[~outlier_rows]
+        outlier_data = self.data.loc[outlier_rows]
+
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111, projection='3d')
+
+        ax.scatter(
+            normal_data[x_col],
+            normal_data[y_col],
+            normal_data[z_col],
+            color='blue',
+            alpha=0.5,
+            label='Normal'
+        )
+
+        ax.scatter(
+            outlier_data[x_col],
+            outlier_data[y_col],
+            outlier_data[z_col],
+            color='red',
+            alpha=0.8,
+            label='Outliers'
+        )
+
+        ax.set_xlabel(x_col)
+        ax.set_ylabel(y_col)
+        ax.set_zlabel(z_col)
+
+        ax.set_title(
+            f'3D Outlier Detection: {method.replace("_", " ").title()}',
+            fontweight='bold'
+        )
+
+        ax.legend()
+        plt.tight_layout()
                                  
         return fig
     
