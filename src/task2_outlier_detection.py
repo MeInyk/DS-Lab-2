@@ -836,36 +836,38 @@ def main():
     print("5. GENERATING VISUALIZATIONS")
     print("-" * 80)
     
+   
     print("  Creating box plots...")
     analyzer.visualize_outliers_boxplot()
-    plt.savefig('task2_boxplots.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task2_boxplots.png")
-    
+    plt.savefig('images/task2_boxplots.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task2_boxplots.png")
+
     print("  Creating violin plots...")
     analyzer.visualize_outliers_violin()
-    plt.savefig('task2_violin_plots.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task2_violin_plots.png")
-    
+    plt.savefig('images/task2_violin_plots.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task2_violin_plots.png")
+
     print("  Creating scatter plots with outlier detection...")
     analyzer.visualize_outliers_scatter('feature1', 'feature2')
-    plt.savefig('task2_scatter_outliers.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task2_scatter_outliers.png")
-    
+    plt.savefig('images/task2_scatter_outliers.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task2_scatter_outliers.png")
+
     print("  Creating 3D outlier visualization...")
     analyzer.visualize_3d_outliers('feature1', 'feature2', 'feature3', method='isolation_forest')
-    plt.savefig('task2_3d_outliers.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task2_3d_outliers.png")
-    
+    plt.savefig('images/task2_3d_outliers.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task2_3d_outliers.png")
+
     print("  Creating treatment comparison plots...")
     analyzer.visualize_treatment_comparison('feature1')
-    plt.savefig('task2_treatment_comparison.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task2_treatment_comparison.png")
-    
+    plt.savefig('images/task2_treatment_comparison.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task2_treatment_comparison.png")
+
     print("  Creating Q-Q plots...")
     analyzer.visualize_qq_plots()
-    plt.savefig('task2_qq_plots.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task2_qq_plots.png")
+    plt.savefig('images/task2_qq_plots.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task2_qq_plots.png")
     print()
+
     
     print("=" * 80)
     print("Task 2 completed successfully!")

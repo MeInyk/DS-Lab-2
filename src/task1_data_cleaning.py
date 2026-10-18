@@ -556,17 +556,17 @@ def main():
     print("-" * 80)
     print("  Creating missing data visualizations...")
     analyzer.visualize_missing_data()
-    plt.savefig('task1_missing_data_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig('images/task1_missing_data_analysis.png', dpi=300, bbox_inches='tight')
     print("  Saved: task1_missing_data_analysis.png")
     
     print("  Creating imputation comparison for 'income'...")
     analyzer.visualize_imputation_comparison('income')
-    plt.savefig('task1_imputation_comparison.png', dpi=300, bbox_inches='tight')
+    plt.savefig('images/task1_imputation_comparison.png', dpi=300, bbox_inches='tight')
     print("  Saved: task1_imputation_comparison.png")
     
     print("  Creating correlation comparison...")
     analyzer.visualize_correlation_comparison()
-    plt.savefig('task1_correlation_comparison.png', dpi=300, bbox_inches='tight')
+    plt.savefig('images/task1_correlation_comparison.png', dpi=300, bbox_inches='tight')
     print("  Saved: task1_correlation_comparison.png")
     print()
     

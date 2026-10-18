@@ -739,35 +739,36 @@ def main():
     print("4. GENERATING VISUALIZATIONS")
     print("-" * 80)
     
+   
     print("  Creating distribution comparison plots...")
     analyzer.visualize_distributions()
-    plt.savefig('task3_distributions.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task3_distributions.png")
-    
+    plt.savefig('images/task3_distributions.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task3_distributions.png")
+
     print("  Creating box plots...")
     analyzer.visualize_boxplots()
-    plt.savefig('task3_boxplots.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task3_boxplots.png")
-    
+    plt.savefig('images/task3_boxplots.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task3_boxplots.png")
+
     print("  Creating correlation comparison...")
     analyzer.visualize_correlation_comparison()
-    plt.savefig('task3_correlations.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task3_correlations.png")
-    
+    plt.savefig('images/task3_correlations.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task3_correlations.png")
+
     print("  Creating performance comparison...")
     analyzer.visualize_performance_comparison(comparison)
-    plt.savefig('task3_performance.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task3_performance.png")
-    
+    plt.savefig('images/task3_performance.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task3_performance.png")
+
     print("  Creating 2D feature space visualization...")
     analyzer.visualize_feature_space_2d('age', 'income')
-    plt.savefig('task3_feature_space_2d.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task3_feature_space_2d.png")
-    
+    plt.savefig('images/task3_feature_space_2d.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task3_feature_space_2d.png")
+
     print("  Creating 3D feature space visualization...")
     analyzer.visualize_feature_space_3d('age', 'income', 'credit_score')
-    plt.savefig('task3_feature_space_3d.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task3_feature_space_3d.png")
+    plt.savefig('images/task3_feature_space_3d.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task3_feature_space_3d.png")
     print()
     
     print("=" * 80)

@@ -873,40 +873,51 @@ def main():
     y_pred = pipeline_manager.pipeline.predict(X_test)
     y_pred_proba = pipeline_manager.pipeline.predict_proba(X_test)[:, 1]
     
+
     # Create visualizations
     print("6. GENERATING VISUALIZATIONS")
     print("-" * 80)
-    
+
     print("  Creating confusion matrix...")
-    pipeline_manager.visualize_confusion_matrix(y_test, y_pred, 
-                                               title='Confusion Matrix - Final Pipeline')
-    plt.savefig('task5_confusion_matrix.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task5_confusion_matrix.png")
-    
+    pipeline_manager.visualize_confusion_matrix(
+        y_test, y_pred,
+        title='Confusion Matrix - Final Pipeline'
+    )
+    plt.savefig('images/task5_confusion_matrix.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task5_confusion_matrix.png")
+
     print("  Creating ROC curve...")
-    pipeline_manager.visualize_roc_curve(y_test, y_pred_proba,
-                                        title='ROC Curve - Final Pipeline')
-    plt.savefig('task5_roc_curve.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task5_roc_curve.png")
-    
+    pipeline_manager.visualize_roc_curve(
+        y_test, y_pred_proba,
+        title='ROC Curve - Final Pipeline'
+    )
+    plt.savefig('images/task5_roc_curve.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task5_roc_curve.png")
+
     print("  Creating learning curves...")
-    pipeline_manager.visualize_learning_curves(lc_data,
-                                              title='Learning Curves - Best Configuration')
-    plt.savefig('task5_learning_curves.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task5_learning_curves.png")
-    
+    pipeline_manager.visualize_learning_curves(
+        lc_data,
+        title='Learning Curves - Best Configuration'
+    )
+    plt.savefig('images/task5_learning_curves.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task5_learning_curves.png")
+
     print("  Creating CV scores visualization...")
     cv_scores = baseline_cv['scores']
-    pipeline_manager.visualize_cv_scores(cv_scores,
-                                        title='Cross-Validation Score Distribution')
-    plt.savefig('task5_cv_scores.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task5_cv_scores.png")
-    
+    pipeline_manager.visualize_cv_scores(
+        cv_scores,
+        title='Cross-Validation Score Distribution'
+    )
+    plt.savefig('images/task5_cv_scores.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task5_cv_scores.png")
+
     print("  Creating pipeline comparison...")
-    pipeline_manager.visualize_pipeline_comparison(comparison_df,
-                                                   title='Pipeline Configuration Performance')
-    plt.savefig('task5_pipeline_comparison.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task5_pipeline_comparison.png")
+    pipeline_manager.visualize_pipeline_comparison(
+        comparison_df,
+        title='Pipeline Configuration Performance'
+    )
+    plt.savefig('images/task5_pipeline_comparison.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task5_pipeline_comparison.png")
     print()
     
     # Save pipeline

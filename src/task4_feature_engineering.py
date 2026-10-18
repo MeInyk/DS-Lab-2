@@ -1253,7 +1253,7 @@ if __name__ == "__main__":
         pipeline.feature_importance_scores['random_forest'],
         top_n=15,
         title='Top 15 Features by Random Forest Importance',
-        output_path='task4_feature_importance.png'
+        output_path='images/task4_feature_importance.png'
     )
     
     # Feature importance (Univariate)
@@ -1261,7 +1261,7 @@ if __name__ == "__main__":
         pipeline.feature_importance_scores['univariate'],
         top_n=15,
         title='Top 15 Features by Univariate F-Score',
-        output_path='task4_univariate_importance.png'
+        output_path='images/task4_univariate_importance.png'
     )
     
     # Correlation heatmap
@@ -1269,7 +1269,7 @@ if __name__ == "__main__":
         df,
         features=selected_rf[:20],
         title='Correlation Matrix of Top 20 Features',
-        output_path='task4_feature_correlations.png'
+        output_path='images/task4_feature_correlations.png'
     )
     
     # Pair plot for interaction features
@@ -1280,7 +1280,7 @@ if __name__ == "__main__":
         df,
         features=interaction_feature_names,
         target=y,
-        output_path='task4_interaction_pairplot.png'
+        output_path='images/task4_interaction_pairplot.png'
     )
     
     # Polynomial feature visualization
@@ -1289,7 +1289,7 @@ if __name__ == "__main__":
         df[['num_feature_1', 'poly_num_feature_1^2']].values,
         y.values,
         feature_name='num_feature_1',
-        output_path='task4_polynomial_impact.png'
+        output_path='images/task4_polynomial_impact.png'
     )
     
     # Encoding comparison
@@ -1337,14 +1337,14 @@ if __name__ == "__main__":
     
     visualize_encoding_comparison(
         encoding_performance,
-        output_path='task4_encoding_comparison.png'
+        output_path='images/task4_encoding_comparison.png'
     )
     
     # Feature network
     visualize_feature_network(
         interaction_pairs,
         pipeline.feature_importance_scores['random_forest'],
-        output_path='task4_feature_network.png'
+        output_path='images/task4_feature_network.png'
     )
     
     print("\n" + "=" * 80)

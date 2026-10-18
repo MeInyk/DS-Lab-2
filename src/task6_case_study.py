@@ -843,22 +843,23 @@ def main():
     preprocessor.assess_data_quality()
     preprocessor.print_quality_report()
     
+   
     # Step 2: EDA Visualizations
     print("STEP 2: EXPLORATORY DATA ANALYSIS")
     print("=" * 80)
     print("Generating EDA visualizations...")
-    
+
     preprocessor.visualize_eda()
-    plt.savefig('task6_eda_distributions.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task6_eda_distributions.png")
-    
+    plt.savefig('images/task6_eda_distributions.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task6_eda_distributions.png")
+
     preprocessor.visualize_correlations()
-    plt.savefig('task6_correlations.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task6_correlations.png")
-    
+    plt.savefig('images/task6_correlations.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task6_correlations.png")
+
     preprocessor.visualize_missing_patterns()
-    plt.savefig('task6_missing_patterns.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task6_missing_patterns.png")
+    plt.savefig('images/task6_missing_patterns.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task6_missing_patterns.png")
     print()
     
     # Step 3: Preprocessing Pipeline
@@ -886,14 +887,15 @@ def main():
     preprocessor.preprocess_pipeline(config)
     print()
     
+ 
     # Step 4: Additional Visualizations
     print("STEP 4: GENERATING ADDITIONAL VISUALIZATIONS")
     print("=" * 80)
-    
+
     print("  Creating PCA visualization...")
     preprocessor.visualize_pca()
-    plt.savefig('task6_pca_visualization.png', dpi=300, bbox_inches='tight')
-    print("  Saved: task6_pca_visualization.png")
+    plt.savefig('images/task6_pca_visualization.png', dpi=300, bbox_inches='tight')
+    print("  Saved: images/task6_pca_visualization.png")
     print()
     
     # Step 5: Generate Report
@@ -913,12 +915,13 @@ def main():
     print(f"  Preprocessing steps: {len(preprocessor.preprocessing_steps)}")
     print()
     print("FILES GENERATED:")
-    print("  - task6_eda_distributions.png")
-    print("  - task6_correlations.png")
-    print("  - task6_missing_patterns.png")
-    print("  - task6_pca_visualization.png")
+    print("  - images/task6_eda_distributions.png")
+    print("  - images/task6_correlations.png")
+    print("  - images/task6_missing_patterns.png")
+    print("  - images/task6_pca_visualization.png")
     print("  - task6_preprocessing_report.json")
     print()
+
     
     return preprocessor
 
