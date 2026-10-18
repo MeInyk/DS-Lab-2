@@ -73,7 +73,27 @@ class ScalingAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with features scaled to specified range.
         """
-        pass
+        scaled_data = self.data.copy()
+
+        numeric_cols = [
+            col for col in self.data.select_dtypes(include=[np.number]).columns
+            if col != self.target_col
+        ]
+
+        if not numeric_cols or self.data.empty:
+            self.scaled_datasets['minmax'] = scaled_data
+            return scaled_data
+
+        scaler = MinMaxScaler(feature_range=feature_range)
+
+        scaled_data[numeric_cols] = scaler.fit_transform(
+            self.data[numeric_cols]
+        )
+
+        self.scalers['minmax'] = scaler
+        self.scaled_datasets['minmax'] = scaled_data
+
+        return scaled_data
     
     def apply_standard_scaling(self) -> pd.DataFrame:
         """
@@ -82,7 +102,27 @@ class ScalingAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with standardized features.
         """
-        pass
+        scaled_data = self.data.copy()
+
+        numeric_cols = [
+            col for col in self.data.select_dtypes(include=[np.number]).columns
+            if col != self.target_col
+        ]
+
+        if not numeric_cols or self.data.empty:
+            self.scaled_datasets['standard'] = scaled_data
+            return scaled_data
+
+        scaler = StandardScaler()
+
+        scaled_data[numeric_cols] = scaler.fit_transform(
+            self.data[numeric_cols]
+        )
+
+        self.scalers['standard'] = scaler
+        self.scaled_datasets['standard'] = scaled_data
+
+        return scaled_data
     
     def apply_robust_scaling(self) -> pd.DataFrame:
         """
@@ -91,7 +131,27 @@ class ScalingAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with robust scaled features.
         """
-        pass
+        scaled_data = self.data.copy()
+
+        numeric_cols = [
+            col for col in self.data.select_dtypes(include=[np.number]).columns
+            if col != self.target_col
+        ]
+
+        if not numeric_cols or self.data.empty:
+            self.scaled_datasets['robust'] = scaled_data
+            return scaled_data
+
+        scaler = RobustScaler()
+
+        scaled_data[numeric_cols] = scaler.fit_transform(
+            self.data[numeric_cols]
+        )
+
+        self.scalers['robust'] = scaler
+        self.scaled_datasets['robust'] = scaled_data
+
+        return scaled_data
     
     def apply_maxabs_scaling(self) -> pd.DataFrame:
         """
@@ -100,7 +160,27 @@ class ScalingAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with maxabs scaled features.
         """
-        pass
+        scaled_data = self.data.copy()
+
+        numeric_cols = [
+            col for col in self.data.select_dtypes(include=[np.number]).columns
+            if col != self.target_col
+        ]
+
+        if not numeric_cols or self.data.empty:
+            self.scaled_datasets['maxabs'] = scaled_data
+            return scaled_data
+
+        scaler = MaxAbsScaler()
+
+        scaled_data[numeric_cols] = scaler.fit_transform(
+            self.data[numeric_cols]
+        )
+
+        self.scalers['maxabs'] = scaler
+        self.scaled_datasets['maxabs'] = scaled_data
+
+        return scaled_data
     
     def apply_power_transform(self, method: str = 'yeo-johnson') -> pd.DataFrame:
         """
@@ -112,7 +192,27 @@ class ScalingAnalyzer:
         Returns:
             pd.DataFrame: DataFrame with power transformed and standardized features.
         """
-        pass
+        scaled_data = self.data.copy()
+
+        numeric_cols = [
+            col for col in self.data.select_dtypes(include=[np.number]).columns
+            if col != self.target_col
+        ]
+
+        if not numeric_cols or self.data.empty:
+            self.scaled_datasets['power'] = scaled_data
+            return scaled_data
+
+        scaler = PowerTransformer(method=method, standardize=True)
+
+        scaled_data[numeric_cols] = scaler.fit_transform(
+            self.data[numeric_cols]
+        )
+
+        self.scalers['power'] = scaler
+        self.scaled_datasets['power'] = scaled_data
+
+        return scaled_data
     
     def get_scaling_summary(self) -> pd.DataFrame:
         """
@@ -121,7 +221,26 @@ class ScalingAnalyzer:
         Returns:
             DataFrame with statistics for each scaling method
         """
-        pass
+        numeric_cols = [
+            col for col in self.data.select_dtypes(include=[np.number]).columns
+            if col != self.target_col
+        ]
+
+        datasets = {
+            'original': self.original_data,
+            **self.scaled_datasets
+        }
+
+        summaries = {}
+
+        for method_name, dataset in datasets.items():
+            summary = dataset[numeric_cols].agg(
+                ['mean', 'std', 'min', 'max']
+            ).T
+
+            summaries[method_name] = summary
+
+        return pd.concat(summaries, axis=1)
     
     def evaluate_model_performance(self, model_type: str = 'linear_regression',
                                    dataset_name: str = 'original') -> Dict[str, float]:
@@ -135,7 +254,48 @@ class ScalingAnalyzer:
         Returns:
             Dict[str, float]: Dictionary containing cv_score and cv_std.
         """
-        pass
+        if dataset_name == 'original':
+            dataset = self.original_data
+        elif dataset_name in self.scaled_datasets:
+            dataset = self.scaled_datasets[dataset_name]
+        else:
+            raise ValueError(f"Dataset '{dataset_name}' not found")
+
+        if self.target_col is None or self.target_col not in dataset.columns:
+            raise ValueError("Target column is required for model evaluation")
+
+        X = dataset.drop(columns=[self.target_col])
+        X = X.select_dtypes(include=[np.number])
+        X = X.fillna(X.mean()).fillna(0)
+
+        y = dataset[self.target_col]
+
+        if model_type == 'linear_regression':
+            model = LinearRegression()
+        elif model_type == 'knn':
+            model = KNeighborsClassifier(n_neighbors=5)
+        elif model_type == 'svm':
+            model = SVC()
+        elif model_type == 'neural_network':
+            model = MLPClassifier(
+                hidden_layer_sizes=(50,),
+                max_iter=1000,
+                random_state=42
+            )
+        else:
+            raise ValueError(f"Model '{model_type}' not supported")
+
+        scores = cross_val_score(
+            model,
+            X,
+            y,
+            cv=5
+        )
+
+        return {
+            'cv_score': float(scores.mean()),
+            'cv_std': float(scores.std())
+        }
     
     def compare_model_performance(self, model_types: List[str] = None) -> pd.DataFrame:
         """
